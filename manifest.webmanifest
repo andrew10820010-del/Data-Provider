@@ -2,31 +2,29 @@
   "name": "Kandil Data Provider",
   "short_name": "Data Provider",
   "description": "Kandil Packaging Required Data — request form with PDF and Word export",
-  "id": "./",
-  "start_url": "./",
-  "scope": "./",
+  "id": "/Data-Provider/",
+  "start_url": "/Data-Provider/",
+  "scope": "/Data-Provider/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#f3f8f8",
   "theme_color": "#50c0c8",
   "lang": "en",
-  "categories": ["business", "productivity"],
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/Data-Provider/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-512.png",
+      "src": "/Data-Provider/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-512.png",
+      "src": "/Data-Provider/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
