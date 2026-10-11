@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Data Provider">
 <meta name="application-name" content="Kandil Data Provider">
-<meta name="description" content="Kandil Packaging Required Data — installable on Windows, Android, Edge and Chrome">
+<meta name="description" content="Kandil Packaging Required Data — installable PC and mobile app">
 <link rel="manifest" href="/Data-Provider/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/Data-Provider/apple-touch-icon.png">
 <title>Packaging Required Data</title>
@@ -51,17 +51,11 @@ textarea{min-height:80px;resize:vertical}
 .chk{display:inline-block;margin:2px 10px 2px 0;font-weight:400}
 .ft{text-align:center;color:var(--mut);font-size:12px;margin:18px 0 8px}
 
-/* Install button inside the form */
 .btn.install{background:#0a3b41;color:#fff}
 .btn.install.hid{display:none!important}
 #pwaInstallHint{font-size:12px;color:var(--mut);margin-top:8px;text-align:center;line-height:1.4}
-
-/* Install + auto-update */
-.btn.install{background:#0a3b41;color:#fff}
-.btn.install.hid{display:none!important}
-#pwaInstallHint{font-size:12px;color:var(--mut);margin-top:8px;text-align:center;line-height:1.4}
-#pwaUpdateBar{display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#0a3b41;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);font:14px/1.4 system-ui,sans-serif;align-items:center;justify-content:space-between;gap:12px}
-#pwaUpdateBar.show{display:flex;flex-wrap:wrap}
+#pwaUpdateBar{display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#0a3b41;color:#fff;padding:12px 16px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);font:14px/1.4 system-ui,sans-serif;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#pwaUpdateBar.show{display:flex}
 #pwaUpdateBar button{background:#50c0c8;color:#0a3b41;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script></head>
@@ -678,7 +672,7 @@ function formHtml(){
       h+="</div></div>";
     }
   });
-  return `<div id="frm">${h}<div class="c"><button class="btn" data-c="pdf">Download PDF</button><button class="btn sec" data-c="docx">Download Word</button><button type="button" class="btn install" id="pwaInstallBtn" data-c="install">Install app</button></div><div id="pwaInstallHint"></div></div>`;
+  return `<div id="frm">${h}<div class="c"><button class="btn" data-c="pdf">Download PDF</button><button class="btn sec" data-c="docx">Download Word</button><button type="button" class="btn install" id="pwaInstallBtn">Install app</button></div><div id="pwaInstallHint"></div></div>`;
 }
 
 function render(){
@@ -1058,34 +1052,14 @@ A.addEventListener("change",ev=>{
 render();
 
 </script>
-
-
 <script>
 (function () {
-  var APP_VERSION = "v5-3-20261011";
+  var APP_VERSION = "v6-1-20261011";
   var deferredPrompt = null;
 
   function isStandalone() {
     return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
       || window.navigator.standalone === true;
-  }
-
-  function ensureUpdateBar() {
-    var bar = document.getElementById("pwaUpdateBar");
-    if (bar) return bar;
-    bar = document.createElement("div");
-    bar.id = "pwaUpdateBar";
-    bar.innerHTML = "<span>A new version is ready.</span><button type=\"button\" id=\"pwaReloadBtn\">Update now</button>";
-    document.body.appendChild(bar);
-    bar.querySelector("#pwaReloadBtn").addEventListener("click", function () {
-      try { sessionStorage.setItem("pwa_force_reload", APP_VERSION); } catch (x) {}
-      window.location.reload();
-    });
-    return bar;
-  }
-
-  function showUpdateBar() {
-    ensureUpdateBar().classList.add("show");
   }
 
   function updateInstallUI() {
@@ -1100,8 +1074,30 @@ render();
     btn.classList.remove("hid");
     if (!hint) return;
     hint.textContent = deferredPrompt
-      ? "Click Install app to add this program to your PC or phone (Chrome / Edge)."
-      : "Edge: ⋯ → Apps → Install this site as an app.  Chrome / Android: menu → Install app / Add to Home screen.";
+      ? "Click Install app to add this program to your PC or phone."
+      : "Edge: ⋯ → Apps → Install this site as an app.  Chrome: install icon in address bar or menu → Install app.  Android: ⋮ → Install app.";
+  }
+
+  function showUpdateBar() {
+    var bar = document.getElementById("pwaUpdateBar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "pwaUpdateBar";
+      bar.innerHTML = "<span>New version available.</span><button type=\"button\" id=\"pwaReloadBtn\">Update now</button>";
+      document.body.appendChild(bar);
+      bar.querySelector("#pwaReloadBtn").onclick = function () {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+          navigator.serviceWorker.getRegistration("/Data-Provider/").then(function (reg) {
+            if (reg && reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+            // One reload only, after user clicks
+            setTimeout(function () { location.reload(); }, 300);
+          });
+        } else {
+          location.reload();
+        }
+      };
+    }
+    bar.classList.add("show");
   }
 
   window.addEventListener("beforeinstallprompt", function (e) {
@@ -1127,92 +1123,62 @@ render();
       return;
     }
     alert(
-      "Install prompt is not ready yet.\\n\\n" +
-      "Edge: ⋯ → Apps → Install this site as an app\\n" +
-      "Chrome: address-bar install icon or menu → Install\\n" +
-      "Android Chrome: ⋮ → Install app / Add to Home screen\\n\\n" +
-      "https://andrew10820010-del.github.io/Data-Provider/"
+      "Install is not ready in this browser yet.\n\n" +
+      "Edge (PC): ⋯ → Apps → Install this site as an app\n" +
+      "Chrome (PC): address-bar install icon or menu → Install\n" +
+      "Android Chrome: ⋮ → Install app / Add to Home screen\n\n" +
+      "Use: https://andrew10820010-del.github.io/Data-Provider/"
     );
   });
 
-  function registerSW() {
+  function boot() {
+    updateInstallUI();
+    setTimeout(updateInstallUI, 2000);
+
     if (!("serviceWorker" in navigator)) return;
 
-    // One-time reload after user clicked Update now (or after we applied a new SW once)
-    try {
-      if (sessionStorage.getItem("pwa_force_reload") === APP_VERSION) {
-        sessionStorage.removeItem("pwa_force_reload");
-      }
-    } catch (x) {}
-
     navigator.serviceWorker
-      .register("/Data-Provider/sw.js?v=" + encodeURIComponent(APP_VERSION), { scope: "/Data-Provider/" })
+      .register("/Data-Provider/sw.js", { scope: "/Data-Provider/" })
       .then(function (reg) {
         try { reg.update(); } catch (x) {}
 
-        function promptWaiting(worker) {
-          if (!worker) return;
-          // Activate new worker; page reloads only ONCE via controllerchange + session guard
-          worker.postMessage({ type: "SKIP_WAITING" });
-          showUpdateBar();
-        }
-
-        if (reg.waiting) promptWaiting(reg.waiting);
+        if (reg.waiting) showUpdateBar();
 
         reg.addEventListener("updatefound", function () {
           var nw = reg.installing;
           if (!nw) return;
           nw.addEventListener("statechange", function () {
+            // New SW ready while an old one is controlling → offer update (no auto-reload)
             if (nw.state === "installed" && navigator.serviceWorker.controller) {
-              promptWaiting(nw);
+              showUpdateBar();
             }
           });
         });
 
-        // Check for updates when app opens and when tab becomes visible (not every second)
+        // When user returns to the app, check for updates quietly
         document.addEventListener("visibilitychange", function () {
           if (document.visibilityState === "visible") {
             try { reg.update(); } catch (x) {}
           }
         });
-        // Gentle periodic check: every 5 minutes (not 60s) to avoid churn
-        setInterval(function () {
-          try { reg.update(); } catch (x) {}
-        }, 300000);
       })
       .catch(function (err) {
-        console.warn("SW register failed", err);
+        console.warn("Service worker registration failed", err);
       });
-
-    // Reload at most once when the new SW takes control
-    var reloadedKey = "pwa_reloaded_" + APP_VERSION;
-    navigator.serviceWorker.addEventListener("controllerchange", function () {
-      try {
-        if (sessionStorage.getItem(reloadedKey)) return;
-        sessionStorage.setItem(reloadedKey, "1");
-      } catch (x) {}
-      // Soft reload once so new HTML is used — no loop
-      window.location.reload();
-    });
   }
 
-  function boot() {
-    updateInstallUI();
-    setTimeout(updateInstallUI, 1500);
-    registerSW();
-  }
   if (document.readyState === "complete") boot();
   else window.addEventListener("load", boot);
 
-  // Light observer: only refresh install button after form re-render (debounced)
+  // Keep Install button after form re-renders (debounced, light)
   window.addEventListener("DOMContentLoaded", function () {
     var app = document.getElementById("app");
     if (!app || !window.MutationObserver) return;
-    var t = null;
+    var timer = null;
     new MutationObserver(function () {
-      if (t) clearTimeout(t);
-      t = setTimeout(updateInstallUI, 200);
-    }).observe(app, { childList: true, subtree: false });
+      clearTimeout(timer);
+      timer = setTimeout(updateInstallUI, 250);
+    }).observe(app, { childList: true });
   });
 })();
 </script>
