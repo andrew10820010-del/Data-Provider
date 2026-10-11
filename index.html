@@ -1059,11 +1059,11 @@ render();
 
 </script>
 
+
 <script>
 (function () {
-  var APP_VERSION = "v5-2-20261011";
+  var APP_VERSION = "v5-3-20261011";
   var deferredPrompt = null;
-  var refreshing = false;
 
   function isStandalone() {
     return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
@@ -1075,17 +1075,17 @@ render();
     if (bar) return bar;
     bar = document.createElement("div");
     bar.id = "pwaUpdateBar";
-    bar.innerHTML = "<span>A new version of Data Provider is available.</span><button type=\"button\" id=\"pwaReloadBtn\">Update now</button>";
+    bar.innerHTML = "<span>A new version is ready.</span><button type=\"button\" id=\"pwaReloadBtn\">Update now</button>";
     document.body.appendChild(bar);
     bar.querySelector("#pwaReloadBtn").addEventListener("click", function () {
+      try { sessionStorage.setItem("pwa_force_reload", APP_VERSION); } catch (x) {}
       window.location.reload();
     });
     return bar;
   }
 
   function showUpdateBar() {
-    var bar = ensureUpdateBar();
-    bar.classList.add("show");
+    ensureUpdateBar().classList.add("show");
   }
 
   function updateInstallUI() {
@@ -1099,11 +1099,9 @@ render();
     }
     btn.classList.remove("hid");
     if (!hint) return;
-    if (deferredPrompt) {
-      hint.textContent = "Click Install app to add this program to your PC or phone (Chrome / Edge).";
-    } else {
-      hint.textContent = "Edge: ⋯ → Apps → Install this site as an app.  Chrome / Android: Install app when available, or browser menu → Install app / Add to Home screen.";
-    }
+    hint.textContent = deferredPrompt
+      ? "Click Install app to add this program to your PC or phone (Chrome / Edge)."
+      : "Edge: ⋯ → Apps → Install this site as an app.  Chrome / Android: menu → Install app / Add to Home screen.";
   }
 
   window.addEventListener("beforeinstallprompt", function (e) {
@@ -1111,7 +1109,6 @@ render();
     deferredPrompt = e;
     updateInstallUI();
   });
-
   window.addEventListener("appinstalled", function () {
     deferredPrompt = null;
     updateInstallUI();
@@ -1130,82 +1127,92 @@ render();
       return;
     }
     alert(
-      "Automatic install prompt is not ready yet.\\n\\n" +
-      "Windows Edge:\\n  ⋯ → Apps → Install this site as an app\\n\\n" +
-      "Windows Chrome:\\n  Install icon in address bar, or menu → Install Data Provider\\n\\n" +
-      "Android Chrome:\\n  Menu (⋮) → Install app / Add to Home screen\\n\\n" +
-      "Open: https://andrew10820010-del.github.io/Data-Provider/"
+      "Install prompt is not ready yet.\\n\\n" +
+      "Edge: ⋯ → Apps → Install this site as an app\\n" +
+      "Chrome: address-bar install icon or menu → Install\\n" +
+      "Android Chrome: ⋮ → Install app / Add to Home screen\\n\\n" +
+      "https://andrew10820010-del.github.io/Data-Provider/"
     );
   });
 
-  // When a new service worker takes control → reload so HTML/JS updates apply
-  // (same idea as keeping Specs Generator apps current)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.addEventListener("controllerchange", function () {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-  }
-
-  function registerAndWatchUpdates() {
+  function registerSW() {
     if (!("serviceWorker" in navigator)) return;
+
+    // One-time reload after user clicked Update now (or after we applied a new SW once)
+    try {
+      if (sessionStorage.getItem("pwa_force_reload") === APP_VERSION) {
+        sessionStorage.removeItem("pwa_force_reload");
+      }
+    } catch (x) {}
+
     navigator.serviceWorker
       .register("/Data-Provider/sw.js?v=" + encodeURIComponent(APP_VERSION), { scope: "/Data-Provider/" })
       .then(function (reg) {
-        // Check for updates on load
         try { reg.update(); } catch (x) {}
 
-        // If a waiting worker exists, activate it
-        if (reg.waiting) {
-          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        function promptWaiting(worker) {
+          if (!worker) return;
+          // Activate new worker; page reloads only ONCE via controllerchange + session guard
+          worker.postMessage({ type: "SKIP_WAITING" });
           showUpdateBar();
         }
+
+        if (reg.waiting) promptWaiting(reg.waiting);
 
         reg.addEventListener("updatefound", function () {
           var nw = reg.installing;
           if (!nw) return;
           nw.addEventListener("statechange", function () {
             if (nw.state === "installed" && navigator.serviceWorker.controller) {
-              // New version ready — activate immediately
-              nw.postMessage({ type: "SKIP_WAITING" });
-              showUpdateBar();
+              promptWaiting(nw);
             }
           });
         });
 
-        // Periodic update check while app is open (every 60s)
+        // Check for updates when app opens and when tab becomes visible (not every second)
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") {
+            try { reg.update(); } catch (x) {}
+          }
+        });
+        // Gentle periodic check: every 5 minutes (not 60s) to avoid churn
         setInterval(function () {
           try { reg.update(); } catch (x) {}
-        }, 60000);
+        }, 300000);
       })
       .catch(function (err) {
         console.warn("SW register failed", err);
       });
 
-    // Also check when user returns to the tab
-    document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "visible" && navigator.serviceWorker.getRegistration) {
-        navigator.serviceWorker.getRegistration("/Data-Provider/").then(function (reg) {
-          if (reg) try { reg.update(); } catch (x) {}
-        });
-      }
+    // Reload at most once when the new SW takes control
+    var reloadedKey = "pwa_reloaded_" + APP_VERSION;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      try {
+        if (sessionStorage.getItem(reloadedKey)) return;
+        sessionStorage.setItem(reloadedKey, "1");
+      } catch (x) {}
+      // Soft reload once so new HTML is used — no loop
+      window.location.reload();
     });
   }
 
   function boot() {
     updateInstallUI();
-    setTimeout(updateInstallUI, 2000);
-    registerAndWatchUpdates();
+    setTimeout(updateInstallUI, 1500);
+    registerSW();
   }
   if (document.readyState === "complete") boot();
   else window.addEventListener("load", boot);
 
+  // Light observer: only refresh install button after form re-render (debounced)
   window.addEventListener("DOMContentLoaded", function () {
     var app = document.getElementById("app");
-    if (app && window.MutationObserver) {
-      new MutationObserver(function () { updateInstallUI(); }).observe(app, { childList: true, subtree: true });
-    }
+    if (!app || !window.MutationObserver) return;
+    var t = null;
+    new MutationObserver(function () {
+      if (t) clearTimeout(t);
+      t = setTimeout(updateInstallUI, 200);
+    }).observe(app, { childList: true, subtree: false });
   });
 })();
 </script>
