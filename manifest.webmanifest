@@ -1,18 +1,20 @@
 {
-  "name": "Kandil Data Provider",
-  "short_name": "Data Provider",
-  "description": "Kandil Packaging Required Data form with PDF and Word export",
-  "id": "/Data-Provider/",
-  "start_url": "/Data-Provider/",
-  "scope": "/Data-Provider/",
+  "id": "./",
+  "name": "Kandil Packaging Required Data",
+  "short_name": "Packaging Data",
+  "description": "Kandil packaging request form - fill in packaging requirements and export to PDF or Word.",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f3f8f8",
-  "theme_color": "#50c0c8",
+  "background_color": "#ffffff",
+  "theme_color": "#d01070",
   "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
   "icons": [
-    {"src": "/Data-Provider/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "/Data-Provider/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "/Data-Provider/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
