@@ -1,17 +1,20 @@
-/* Kandil Data Provider — service worker (cache shell for install / offline open) */
-const CACHE = "kandil-data-provider-v4";
+/* Kandil Data Provider SW v5-2-20261011 — auto-update */
+const CACHE = "kandil-data-provider-v5-2-20261011";
+const BASE = "/Data-Provider/";
 const SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.webmanifest",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./apple-touch-icon.png"
+  BASE,
+  BASE + "index.html",
+  BASE + "manifest.webmanifest",
+  BASE + "icon-192.png",
+  BASE + "icon-512.png",
+  BASE + "apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((cache) =>
+      Promise.all(SHELL.map((u) => cache.add(u).catch(() => null)))
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -23,24 +26,51 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Allow page to force activate waiting worker
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  // Network-first for same-origin app shell; fall back to cache offline
+
+  // HTML navigations: always try network first so updates apply quickly
+  if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(BASE + "index.html", copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(BASE + "index.html"))
+    );
+    return;
+  }
+
+  // Same-origin assets: network first, cache fallback
   if (url.origin === self.location.origin) {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy));
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(req, copy));
+          }
           return res;
         })
-        .catch(() => caches.match(req).then((c) => c || caches.match("./index.html")))
+        .catch(() => caches.match(req))
     );
     return;
   }
-  // CDN scripts (jsPDF etc.): cache if fetched once
+
+  // CDN: cache-first
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
@@ -50,7 +80,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE).then((cache) => cache.put(req, copy));
         }
         return res;
-      }).catch(() => cached);
+      });
     })
   );
 });
